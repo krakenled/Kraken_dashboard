@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KRAKEN LED Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #1a1a1a;
+    padding-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  h1 { font-size: 12px; letter-spacing: 0.3em; color: #444; text-transform: uppercase; }
+
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  #status-summary { font-size: 11px; color: #333; letter-spacing: 0.15em; }
+
+  button {
+    background: #1a1a1a;
+    color: #666;
+    border: 1px solid #2a2a2a;
+    padding: 4px 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  button:hover { background: #222; color: #aaa; }
+  button.active { background: #222; color: #fff; border-color: #444; }
+
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* LANDSCAPE card */
+  .bar-card {
+    background: #111;
+    border: 1px solid #1e1e1e;
+    border-radius: 3px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bar-card.landscape { width: 320px; }
+  .bar-card.portrait  { width: 76px; }
+  .bar-card.online  { border-color: #1a1a1a; }
+  .bar-card.offline { border-color: #2a1010; opacity: 0.5; }
+
+  .bar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 8px;
+    background: #0d0d0d;
+    flex-shrink: 0;
+  }
+
+  .bar-card.portrait .bar-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 5px 6px;
+  }
+
+  .bar-name { font-size: 9px; letter-spacing: 0.15em; color: #666; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-card.portrait .bar-name { font-size: 8px; max-width: 64px; }
+
+  .bar-meta { display: flex; align-items: center; gap: 6px; font-size: 9px; color: #333; }
+  .bar-card.portrait .bar-meta { gap: 4px; }
+
+  .status-dot {
+    width: 5px; height: 5px; border-radius: 50%; background: #333; flex-shrink: 0;
+  }
+  .status-dot.online    { background: #0f0; box-shadow: 0 0 4px #0f0; }
+  .status-dot.offline   { background: #f00; }
+  .status-dot.connecting { background: #f80; animation: pulse 1s infinite; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* LED canvas - landscape */
+  .bar-card.landscape .led-wrap {
+    width: 100%;
+    height: 34px;
+    background: #000;
+    flex-shrink: 0;
+  }
+  .bar-card.landscape .led-canvas {
+    width: 100%;
+    height: 34px;
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  /* LED canvas - portrait */
+  .bar-card.portrait .led-wrap {
+    width: 100%;
+    flex: 1;
+    min-height: 120px;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-card.portrait .led-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    image-rendering: pixelated;
+    transform-origin: top left;
+  }
+
+  .bar-info {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 8px;
+    font-size: 9px;
+    color: #2a2a2a;
+    border-top: 1px solid #161616;
+    flex-shrink: 0;
+  }
+  .bar-card.portrait .bar-info { flex-direction: column; gap: 1px; padding: 4px 6px; }
+
+  .offline-msg {
+    flex: 1;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: #1e1e1e;
+    letter-spacing: 0.2em;
+    background: #080808;
+  }
+
+  /* Edit panel */
+  .edit-panel {
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-radius: 3px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .edit-panel.open { display: block; }
+  .edit-panel h2 { font-size: 10px; letter-spacing: 0.2em; color: #555; margin-bottom: 12px; }
+
+  .device-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+
+  .device-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .device-row input, .device-row select {
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+    color: #888;
+    padding: 4px 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    border-radius: 2px;
+  }
+  .device-row input.ip   { width: 130px; }
+  .device-row input.name { width: 110px; }
+  .device-row input.leds { width: 50px; }
+  .device-row select     { width: 90px; }
+
+  .btn-remove { color: #f44; border-color: #3a1a1a; background: #1a0808; }
+  .btn-remove:hover { background: #2a0808; }
+
+  .add-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .btn-add { color: #4f4; border-color: #1a3a1a; background: #081a08; }
+  .btn-add:hover { background: #0a2a0a; }
+
+  .global-orient { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+  .global-orient label { font-size: 10px; color: #444; letter-spacing: 0.1em; }
+
+  .preset-badge { color: #444; }
+  .fps-badge    { color: #2a2a2a; }
+  .ip-link { color: #2a2a2a; text-decoration: none; font-size: 9px; }
+  .ip-link:hover { color: #666; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ KRAKEN LED · LIVE MONITOR</h1>
+  <div class="header-right">
+    <span id="status-summary">—</span>
+    <button id="btn-edit" onclick="toggleEdit()">EDIT DEVICES</button>
+    <button id="btn-landscape" class="active" onclick="setGlobalOrient('landscape')">LANDSCAPE</button>
+    <button id="btn-portrait" onclick="setGlobalOrient('portrait')">PORTRAIT</button>
+  </div>
+</header>
+
+<div class="edit-panel" id="edit-panel">
+  <h2>DEVICES</h2>
+  <div class="device-list" id="device-list"></div>
+  <div class="add-row">
+    <input class="ip"   id="new-ip"   placeholder="192.168.16.209" />
+    <input class="name" id="new-name" placeholder="Device name" />
+    <input class="leds" id="new-leds" placeholder="96" type="number" />
+    <select id="new-orient">
+      <option value="landscape">Landscape</option>
+      <option value="portrait">Portrait</option>
+    </select>
+    <button class="btn-add" onclick="addDevice()">+ ADD</button>
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+// ── Default devices ──────────────────────────────────────────
+const DEFAULT_DEVICES = [
+  { id:1, ip:'192.168.16.201', name:'Bar 1', leds:96, orient:'landscape', reverse:true },
+  { id:2, ip:'192.168.16.202', name:'Bar 2', leds:96, orient:'landscape', reverse:true },
+  { id:3, ip:'192.168.16.203', name:'Bar 3', leds:96, orient:'landscape', reverse:true },
+  { id:4, ip:'192.168.16.204', name:'Bar 4', leds:96, orient:'landscape', reverse:true },
+  { id:5, ip:'192.168.16.205', name:'Bar 5', leds:96, orient:'landscape', reverse:true },
+  { id:6, ip:'192.168.16.206', name:'Bar 6', leds:96, orient:'landscape', reverse:true },
+  { id:7, ip:'192.168.16.207', name:'Bar 7', leds:96, orient:'landscape', reverse:true },
+  { id:8, ip:'192.168.16.208', name:'Bar 8', leds:96, orient:'landscape', reverse:true },
+];
+
+// ── State ────────────────────────────────────────────────────
+let devices = [];
+let globalOrient = 'landscape';
+const sockets = {};
+const fpsCounters = {};
+let nextId = 100;
+
+// ── Persistence ──────────────────────────────────────────────
+function save() {
+  try { localStorage.setItem('kraken_devices', JSON.stringify(devices));
+        localStorage.setItem('kraken_orient', globalOrient); } catch(e){}
+}
+function load() {
+  try {
+    const d = localStorage.getItem('kraken_devices');
+    const o = localStorage.getItem('kraken_orient');
+    if (d) devices = JSON.parse(d);
+    else    devices = DEFAULT_DEVICES.map(x => ({...x}));
+    if (o)  globalOrient = o;
+    nextId = Math.max(...devices.map(d=>d.id), 99) + 1;
+  } catch(e) { devices = DEFAULT_DEVICES.map(x => ({...x})); }
+}
+
+// ── Orientation ───────────────────────────────────────────────
+function setGlobalOrient(o) {
+  globalOrient = o;
+  document.getElementById('btn-landscape').classList.toggle('active', o==='landscape');
+  document.getElementById('btn-portrait').classList.toggle('active', o==='portrait');
+  devices.forEach(d => { d.orient = o; });
+  save();
+  setTimeout(() => location.reload(), 500);
+}
+
+// ── Edit panel ────────────────────────────────────────────────
+function toggleEdit() {
+  const p = document.getElementById('edit-panel');
+  p.classList.toggle('open');
+  if (p.classList.contains('open')) renderEditList();
+}
+
+function renderEditList() {
+  const list = document.getElementById('device-list');
+  list.innerHTML = '';
+  devices.forEach((dev, i) => {
+    const row = document.createElement('div');
+    row.className = 'device-row';
+    row.innerHTML = `
+      <input class="ip"   value="${dev.ip}"   onchange="devices[${i}].ip=this.value;save()" />
+      <input class="name" value="${dev.name}" onchange="devices[${i}].name=this.value;save()" />
+      <input class="leds" value="${dev.leds}" type="number" onchange="devices[${i}].leds=+this.value;save()" />
+      <select onchange="devices[${i}].orient=this.value;save();rebuildGrid()">
+        <option value="landscape" ${dev.orient==='landscape'?'selected':''}>Landscape</option>
+        <option value="portrait"  ${dev.orient==='portrait' ?'selected':''}>Portrait</option>
+      </select>
+      <input type="checkbox" title="Reverse" ${dev.reverse?"checked":""} onchange="devices[${i}].reverse=this.checked;save()"> Rev
+      <button class="btn-remove" onclick="removeDevice(${i})">REMOVE</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addDevice() {
+  const ip   = document.getElementById('new-ip').value.trim();
+  const name = document.getElementById('new-name').value.trim() || `Device ${nextId}`;
+  const leds = parseInt(document.getElementById('new-leds').value) || 96;
+  const orient = document.getElementById('new-orient').value;
+  if (!ip) return;
+  devices.push({ id: nextId++, ip, name, leds, orient });
+  save();
+  renderEditList();
+  rebuildGrid();
+  document.getElementById('new-ip').value = '';
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-leds').value = '';
+}
+
+function removeDevice(i) {
+  const dev = devices[i];
+  if (sockets[dev.id]) { try { sockets[dev.id].close(); } catch(e){} delete sockets[dev.id]; }
+  const card = document.getElementById(`card-${dev.id}`);
+  if (card) card.remove();
+  devices.splice(i, 1);
+  save();
+  renderEditList();
+  updateSummary();
+}
+
+// ── Grid ──────────────────────────────────────────────────────
+function rebuildGrid() {
+  // disconnect all
+  Object.keys(sockets).forEach(id => { try { sockets[id].close(); } catch(e){} delete sockets[id]; });
+  document.getElementById('grid').innerHTML = '';
+  devices.forEach(dev => buildCard(dev));
+  devices.forEach(dev => connectWS(dev));
+  updateSummary();
+}
+
+function buildCard(dev) {
+  const grid = document.getElementById('grid');
+  const orient = dev.orient || globalOrient;
+
+  const card = document.createElement('div');
+  card.className = `bar-card ${orient} offline`;
+  card.id = `card-${dev.id}`;
+
+  card.innerHTML = `
+    <div class="bar-header">
+      <span class="bar-name" id="name-${dev.id}">${dev.name.toUpperCase()}</span>
+      <div class="bar-meta">
+        <span class="preset-badge" id="preset-${dev.id}">—</span>
+        <a class="ip-link" href="http://${dev.ip}" target="_blank">${dev.ip}</a>
+        <div class="status-dot connecting" id="dot-${dev.id}"></div>
+      </div>
+    </div>
+    <div class="led-wrap" id="wrap-${dev.id}">
+      <canvas class="led-canvas" id="canvas-${dev.id}" width="${dev.leds}" height="1"></canvas>
+      <div class="offline-msg" id="offline-${dev.id}">NO SIGNAL</div>
+    </div>
+    <div class="bar-info">
+      <span>${dev.leds} LEDs</span>
+      <span class="fps-badge" id="fps-${dev.id}">— fps</span>
+    </div>
+  `;
+  grid.appendChild(card);
+
+  if (orient === 'portrait') setupPortraitCanvas(dev);
+}
+
+function setupPortraitCanvas(dev) {
+  const wrap = document.getElementById(`wrap-${dev.id}`);
+  const canvas = document.getElementById(`canvas-${dev.id}`);
+  canvas.width = 1;
+  canvas.height = dev.leds;
+  wrap.style.height = '208px';
+  canvas.style.position = 'static';
+  canvas.style.transform = 'none';
+  canvas.style.width  = '64px';
+  canvas.style.height = '208px';
+  canvas.style.display = 'block';
+  canvas.style.margin = '0 auto';
+  canvas.style.imageRendering = 'pixelated';
+}
+
+// ── Status ────────────────────────────────────────────────────
+function setStatus(id, status) {
+  const dot     = document.getElementById(`dot-${id}`);
+  const card    = document.getElementById(`card-${id}`);
+  const canvas  = document.getElementById(`canvas-${id}`);
+  const offline = document.getElementById(`offline-${id}`);
+  if (!dot) return;
+  dot.className = `status-dot ${status}`;
+  card.className = card.className.replace(/online|offline/g, '').trim() + ` ${status==='online'?'online':'offline'}`;
+  if (canvas)  canvas.style.display  = status==='online' ? 'block' : 'none';
+  if (offline) offline.style.display = status==='online' ? 'none'  : 'flex';
+  updateSummary();
+}
+
+function updateSummary() {
+  const online = devices.filter(d => {
+    const dot = document.getElementById(`dot-${d.id}`);
+    return dot && dot.classList.contains('online');
+  }).length;
+  document.getElementById('status-summary').textContent = `${online}/${devices.length} ONLINE`;
+}
+
+// ── Draw LEDs ─────────────────────────────────────────────────
+function drawLEDs(id, data) {
+  const dev = devices.find(d => d.id === id);
+  if (!dev) return;
+  const canvas = document.getElementById(`canvas-${id}`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const leds = dev.leds;
+  const isPortrait = (dev.orient || globalOrient) === 'portrait';
+
+  if (isPortrait) {
+    if (canvas.width !== 1 || canvas.height !== leds) {
+      canvas.width = 1;
+      canvas.height = leds;
+    }
+    const imgData = ctx.createImageData(1, leds);
+    for (let i = 0; i < leds; i++) {
+      const ri = dev.reverse ? (leds - 1 - i) : i;
+      const b = i * 4;
+      imgData.data[b]   = data[ri*3]   || 0;
+      imgData.data[b+1] = data[ri*3+1] || 0;
+      imgData.data[b+2] = data[ri*3+2] || 0;
+      imgData.data[b+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  } else {
+    if (canvas.width !== leds || canvas.height !== 1) {
+      canvas.width = leds;
+      canvas.height = 1;
+    }
+    const imgData = ctx.createImageData(leds, 1);
+    for (let i = 0; i < leds; i++) {
+      const ri = dev.reverse ? (leds - 1 - i) : i;
+      const b = i * 4;
+      imgData.data[b]   = data[ri*3]   || 0;
+      imgData.data[b+1] = data[ri*3+1] || 0;
+      imgData.data[b+2] = data[ri*3+2] || 0;
+      imgData.data[b+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+}
+
+// ── WebSocket ─────────────────────────────────────────────────
+function connectWS(dev) {
+  if (sockets[dev.id]) { try { sockets[dev.id].close(); } catch(e){} }
+  const ws = new WebSocket(`ws://${dev.ip}/ws`);
+  sockets[dev.id] = ws;
+  ws.binaryType = 'arraybuffer';
+  fpsCounters[dev.id] = { count:0, last:Date.now() };
+
+  ws.onopen = () => {
+    setStatus(dev.id, 'online');
+    setTimeout(() => { try { ws.send(JSON.stringify({lv:true})); } catch(e){} }, 300);
+  };
+
+  ws.onmessage = (evt) => {
+    if (evt.data instanceof ArrayBuffer) {
+      const data = new Uint8Array(evt.data);
+      if (data.length > 2) {
+        drawLEDs(dev.id, data.slice(2));
+        fpsCounters[dev.id].count++;
+        const now = Date.now();
+        if (now - fpsCounters[dev.id].last >= 1000) {
+          const el = document.getElementById(`fps-${dev.id}`);
+          if (el) el.textContent = `${fpsCounters[dev.id].count} fps`;
+          fpsCounters[dev.id].count = 0;
+          fpsCounters[dev.id].last = now;
+        }
+      }
+    } else {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.state) {
+          if (msg.state.ps > 0) {
+            const el = document.getElementById(`preset-${dev.id}`);
+            if (el) el.textContent = `P${msg.state.ps}`;
+          }
+          setTimeout(() => { try { ws.send(JSON.stringify({lv:true})); } catch(e){} }, 100);
+        }
+        if (msg.info && msg.info.name) {
+          const el = document.getElementById(`name-${dev.id}`);
+          if (el) el.textContent = msg.info.name.toUpperCase();
+        }
+      } catch(e) {}
+    }
+  };
+
+  ws.onerror = () => { setStatus(dev.id, 'offline'); };
+  ws.onclose = () => {
+    setStatus(dev.id, 'offline');
+    setTimeout(() => connectWS(dev), 5000);
+  };
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+load();
+// sync button state with loaded orientation
+document.getElementById('btn-landscape').classList.toggle('active', globalOrient==='landscape');
+document.getElementById('btn-portrait').classList.toggle('active', globalOrient==='portrait');
+rebuildGrid();
+</script>
+</body>
+</html>
