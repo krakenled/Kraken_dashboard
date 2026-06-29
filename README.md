@@ -35,8 +35,8 @@ Connect via WebSocket to each controller and see the live LED output in real tim
 
 1. Download `kraken-dashboard-beta.html`
 2. Connect your laptop to the same WiFi network as your WLED controllers
-3. Open the file in Chrome
-4. Controllers will connect automatically
+3. Double-click the file to open it in Chrome
+4. Controllers will connect automatically — no server or install required
 
 ---
 
