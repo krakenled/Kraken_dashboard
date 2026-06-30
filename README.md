@@ -4,6 +4,8 @@ A single HTML file that provides a **live pixel preview** for multiple WLED-base
 
 **[⬇ Download kraken-dashboard_beta.html](https://github.com/krakenled/Kraken_dashboard/raw/main/kraken-dashboard_beta.html)**
 
+*Right-click the link above and select "Save Link As" to download — left-clicking will open the file in your browser instead of saving it.*
+
 Connect via WebSocket to each controller and see the live LED output in real time — the same data shown in the WLED web UI GFX preview. Designed for event and production use where controllers are mounted out of direct sightlines.
 
 ![Kraken LED Dashboard](preview.jpg)
